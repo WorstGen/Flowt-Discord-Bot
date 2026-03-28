@@ -1,0 +1,23 @@
+{
+  "name": "flowt-discord-bot",
+  "version": "1.0.0",
+  "description": "Flowt music bot – streams YouTube, Suno and GEOFF audio in Discord voice and stage channels",
+  "type": "module",
+  "main": "src/bot.mjs",
+  "scripts": {
+    "start": "node src/bot.mjs",
+    "deploy": "DEPLOY_COMMANDS=1 node src/bot.mjs",
+    "dev": "node --watch src/bot.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.9.0",
+    "@discordjs/voice": "^0.17.0",
+    "discord.js": "^14.14.0",
+    "ffmpeg-static": "^5.2.0",
+    "libsodium-wrappers": "^0.7.13",
+    "ytdl-core": "^4.11.5"
+  }
+}
