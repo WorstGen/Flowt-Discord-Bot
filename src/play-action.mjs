@@ -8,6 +8,7 @@
  */
 
 import { getVoiceConnection }  from '@discordjs/voice';
+import { EmbedBuilder }        from 'discord.js';
 import { getOrCreatePlayer }    from './player.mjs';
 import { joinChannel }          from './utils.mjs';
 import {
@@ -102,7 +103,6 @@ export async function playAction({ source, member, guild, textChannel }) {
     player.on('trackStart', (track) => {
       const ch = player._textChannel;
       if (!ch) return;
-      const { EmbedBuilder } = await import('discord.js').catch(() => ({}));
       ch.send({
         embeds: [
           new EmbedBuilder()
