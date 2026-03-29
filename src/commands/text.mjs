@@ -214,7 +214,7 @@ async function handleHelp(message) {
         name: 'Sources',
         value: [
           '`@discover` — Full Flowt feed',
-          '`@alice` — A specific Flowt user's ripples',
+          '`@alice` — A specific Flowt user\'s ripples',
           'YouTube / Suno / GEOFF URLs pasted directly',
         ].join('\n'),
       },
