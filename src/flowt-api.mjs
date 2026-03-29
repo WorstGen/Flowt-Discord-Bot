@@ -99,14 +99,34 @@ function ripplesToTracks(ripples) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+function normalizeUsername(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
+}
+
+function rippleAuthorMatches(ripple, username) {
+  const target = normalizeUsername(username);
+  if (!target) return false;
+  const candidates = [
+    ripple?.author?.username,
+    ripple?.authorUsername,
+    ripple?.username,
+    ripple?.user?.username,
+    ripple?.sender?.username,
+  ];
+  return candidates.some((u) => normalizeUsername(u) === target);
+}
+
 /**
  * Fetch the discover feed (all users, combined).
- * Maps to GET /api/v1/ripples
+ * Maps to GET /api/v1/state (ripples list in payload)
  * @returns {Promise<FlowtTrack[]>}
  */
 export async function fetchDiscoverPlaylist() {
-  const data    = await apiFetch('/api/v1/ripples');
-  const ripples = Array.isArray(data) ? data : (data.ripples ?? []);
+  const data    = await apiFetch('/api/v1/state');
+  const ripples = Array.isArray(data?.ripples) ? data.ripples : [];
   const tracks  = ripplesToTracks(ripples);
   if (!tracks.length) throw new Error('No playable tracks found in the Flowt discover feed.');
   return tracks;
@@ -114,7 +134,7 @@ export async function fetchDiscoverPlaylist() {
 
 /**
  * Fetch ripples for a specific Flowt user (public profile).
- * Maps to GET /api/v1/ripples?username=<username>
+ * Maps to GET /api/v1/state?username=<username> (then filter by author)
  * @param {string} username  With or without the leading @
  * @returns {Promise<FlowtTrack[]>}
  */
@@ -122,9 +142,10 @@ export async function fetchUserPlaylist(username) {
   const clean = username.replace(/^@/, '').trim().toLowerCase();
   if (!clean) throw new Error('Username cannot be empty.');
 
-  const data    = await apiFetch(`/api/v1/ripples?username=${encodeURIComponent(clean)}`);
-  const ripples = Array.isArray(data) ? data : (data.ripples ?? []);
-  const tracks  = ripplesToTracks(ripples);
+  const data     = await apiFetch(`/api/v1/state?username=${encodeURIComponent(clean)}`);
+  const allRipples = Array.isArray(data?.ripples) ? data.ripples : [];
+  const userRipples = allRipples.filter((r) => rippleAuthorMatches(r, clean));
+  const tracks   = ripplesToTracks(userRipples);
   if (!tracks.length) throw new Error(`No playable tracks found for @${clean}.`);
   return tracks;
 }
