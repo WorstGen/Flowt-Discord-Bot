@@ -49,6 +49,16 @@ function extractFirstUrl(text = '') {
   return m ? m[0] : null;
 }
 
+function isLikelyDirectAudioUrl(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!/^https?:\/\//i.test(text)) return false;
+  if (text.includes('/api/proxy-audio')) return true;
+  if (/\.(mp3|m4a|aac|ogg|wav|flac|opus|m3u8)(\?|#|$)/i.test(text)) return true;
+  if (text.includes('googlevideo.com/videoplayback')) return true;
+  if (text.includes('mime=audio')) return true;
+  return false;
+}
+
 /**
  * Detect source type from a URL.
  * @param {string} url
@@ -97,6 +107,41 @@ function ripplesToTracks(ripples) {
   return tracks;
 }
 
+/**
+ * Convert Flowt musicPlaylist items into FlowtTrack shape.
+ * @param {any[]} items
+ * @param {string} ownerUsername
+ * @returns {FlowtTrack[]}
+ */
+function playlistItemsToTracks(items, ownerUsername = '') {
+  const tracks = [];
+  const username = String(ownerUsername || '').trim();
+  for (const item of (Array.isArray(items) ? items : [])) {
+    if (!item || typeof item !== 'object') continue;
+    const provider = String(item.provider || '').trim().toLowerCase();
+    const sourceUrl = String(item.sourceUrl || item.url || '').trim();
+    const embedUrl = String(item.embedUrl || '').trim();
+    const candidate = sourceUrl || embedUrl;
+    if (!candidate) continue;
+
+    const sourceType = provider || detectSourceType(candidate);
+    const streamUrl = (sourceType === 'suno' || sourceType === 'direct' || isLikelyDirectAudioUrl(embedUrl))
+      ? (embedUrl || sourceUrl)
+      : null;
+
+    tracks.push({
+      id:         String(item.id || `pl-${Date.now()}-${Math.random()}`),
+      title:      String(item.title || `${sourceType} track`).trim(),
+      artist:     username ? `@${username}` : 'Flowt',
+      sourceType,
+      sourceUrl:  sourceUrl || embedUrl,
+      streamUrl,
+      durationMs: item.durationMs || null,
+    });
+  }
+  return tracks;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 function normalizeUsername(value) {
@@ -126,8 +171,9 @@ function rippleAuthorMatches(ripple, username) {
  */
 export async function fetchDiscoverPlaylist() {
   const data    = await apiFetch('/api/v1/state');
-  const ripples = Array.isArray(data?.ripples) ? data.ripples : [];
-  const tracks  = ripplesToTracks(ripples);
+  const users   = Array.isArray(data?.users) ? data.users : [];
+  const playlistTracks = users.flatMap((u) => playlistItemsToTracks(u?.musicPlaylist, u?.username));
+  const tracks  = playlistTracks.length ? playlistTracks : ripplesToTracks(Array.isArray(data?.ripples) ? data.ripples : []);
   if (!tracks.length) throw new Error('No playable tracks found in the Flowt discover feed.');
   return tracks;
 }
@@ -142,10 +188,12 @@ export async function fetchUserPlaylist(username) {
   const clean = username.replace(/^@/, '').trim().toLowerCase();
   if (!clean) throw new Error('Username cannot be empty.');
 
-  const data     = await apiFetch(`/api/v1/state?username=${encodeURIComponent(clean)}`);
+  const data       = await apiFetch(`/api/v1/state?username=${encodeURIComponent(clean)}`);
+  const userRecord = data?.user || (Array.isArray(data?.users) ? data.users.find((u) => normalizeUsername(u?.username) === clean) : null);
+  const playlistTracks = playlistItemsToTracks(userRecord?.musicPlaylist, userRecord?.username || clean);
   const allRipples = Array.isArray(data?.ripples) ? data.ripples : [];
   const userRipples = allRipples.filter((r) => rippleAuthorMatches(r, clean));
-  const tracks   = ripplesToTracks(userRipples);
+  const tracks   = playlistTracks.length ? playlistTracks : ripplesToTracks(userRipples);
   if (!tracks.length) throw new Error(`No playable tracks found for @${clean}.`);
   return tracks;
 }
